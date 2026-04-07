@@ -166,7 +166,7 @@ Sends a time-limited password reset link to the user's registered email address.
 | Method + Path | `POST /api/auth/forgot-password` |
 | Auth | Public |
 | Request body | `{ "email": string }` |
-| 200 | `{ "message": "if registered, a reset email has been sent" }` |
+| 200 | `{ "success": true, "message": "if registered, a reset email has been sent", "data": null }` |
 
 Note: HTTP 200 is always returned regardless of whether the email is registered, to prevent email enumeration.
 
@@ -176,9 +176,9 @@ Note: HTTP 200 is always returned regardless of whether the email is registered,
 | Method + Path | `POST /api/auth/reset-password` |
 | Auth | Public (reset token in body) |
 | Request body | `{ "token": string, "newPassword": string }` |
-| 200 | `{ "message": "password reset successful" }` |
-| 401 | `{ "error": "reset_token_expired" }` or `{ "error": "reset_token_already_used" }` |
-| 400 | `{ "error": "validation_error", "details": [...] }` |
+| 200 | `{ "success": true, "message": "password reset successful", "data": null }` |
+| 401 | `{ "success": false, "message": "reset token has expired", "data": null }` or `{ "success": false, "message": "reset token has already been used", "data": null }` |
+| 400 | `{ "success": false, "message": "validation failed", "data": null, "errors": [...] }` |
 
 Reset token: signed JWT, TTL 15 minutes. Invalidated after first use.
 
@@ -206,11 +206,11 @@ Reset token: signed JWT, TTL 15 minutes. Invalidated after first use.
 
 #### Scenario: Expired reset token
 - **WHEN** `POST /api/auth/reset-password` is called with a token past its 15-minute TTL
-- **THEN** HTTP 401 is returned with `{ "error": "reset_token_expired" }`
+- **THEN** HTTP 401 is returned with `{ "success": false, "message": "reset token has expired", "data": null }`
 
 #### Scenario: Reset token reuse attempt
 - **WHEN** `POST /api/auth/reset-password` is called with a token that has already been used
-- **THEN** HTTP 401 is returned with `{ "error": "reset_token_already_used" }`
+- **THEN** HTTP 401 is returned with `{ "success": false, "message": "reset token has already been used", "data": null }`
 
 ---
 

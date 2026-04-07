@@ -37,9 +37,9 @@ A commuter submits a ride request. The request is created in `pending` state.
 | Method + Path | `POST /api/ride-request/book-ride` |
 | Auth | JWT required (commuter) |
 | Request body | `{ "originName": string, "originLat": number, "originLong": number, "destName": string, "destLat": number, "destLong": number, "rideType": string, "organization"?: string }` |
-| 201 | `{ "rideRequestId": string }` |
-| 400 | `{ "error": "validation_error", "details": [...] }` |
-| 409 | `{ "error": "active_ride_exists" }` |
+| 201 | `{ "success": true, "message": "ride booked successfully", "data": { "rideRequestId": string } }` |
+| 400 | `{ "success": false, "message": "validation failed", "data": null, "errors": [...] }` |
+| 409 | `{ "success": false, "message": "an active ride already exists", "data": null }` |
 
 **Kafka Event Produced — `ride.events`:**
 ```json
@@ -67,7 +67,7 @@ Topic key: `rideRequestId`
 
 #### Scenario: Commuter already has active ride
 - **WHEN** the commuter already has a request in `pending` or `assigned` state
-- **THEN** HTTP 409 is returned with `{ "error": "active_ride_exists" }`; no new document is created
+- **THEN** HTTP 409 is returned with `{ "success": false, "message": "an active ride already exists", "data": null }`; no new document is created
 
 #### Scenario: Invalid coordinates
 - **WHEN** origin or destination coordinates are outside valid lat/lng bounds or missing
@@ -145,9 +145,9 @@ A driver explicitly accepts or declines an assigned ride request.
 | Method + Path | `PUT /api/ride-request/accept-ride` |
 | Auth | JWT required (driver) |
 | Request body | `{ "rideRequestId": string }` |
-| 200 | `{ "message": "ride accepted" }` |
-| 403 | `{ "error": "not_assigned_to_driver" }` |
-| 409 | `{ "error": "ride_already_cancelled" }` |
+| 200 | `{ "success": true, "message": "ride accepted", "data": null }` |
+| 403 | `{ "success": false, "message": "this ride is not assigned to you", "data": null }` |
+| 409 | `{ "success": false, "message": "this ride has already been cancelled", "data": null }` |
 
 **Decline:**
 | | |
@@ -155,8 +155,8 @@ A driver explicitly accepts or declines an assigned ride request.
 | Method + Path | `PUT /api/ride-request/decline-ride` |
 | Auth | JWT required (driver) |
 | Request body | `{ "rideRequestId": string, "reason"?: string }` |
-| 200 | `{ "message": "ride declined" }` |
-| 403 | `{ "error": "not_assigned_to_driver" }` |
+| 200 | `{ "success": true, "message": "ride declined", "data": null }` |
+| 403 | `{ "success": false, "message": "this ride is not assigned to you", "data": null }` |
 
 **Kafka Event Produced — `ride.events` (on accept):**
 ```json
@@ -179,7 +179,7 @@ A driver explicitly accepts or declines an assigned ride request.
 
 #### Scenario: Request belongs to different driver
 - **WHEN** a driver calls accept or decline for a rideRequestId not assigned to them
-- **THEN** HTTP 403 is returned with `{ "error": "not_assigned_to_driver" }`
+- **THEN** HTTP 403 is returned with `{ "success": false, "message": "this ride is not assigned to you", "data": null }`
 
 ---
 
@@ -195,7 +195,7 @@ Endpoints for the driver to advance the ride through its lifecycle.
 | Method + Path | `PUT /api/ride-request/driver-reached` |
 | Auth | JWT required (driver) |
 | Request body | `{ "rideRequestId": string }` |
-| 200 | `{ "message": "status updated" }` |
+| 200 | `{ "success": true, "message": "status updated", "data": null }` |
 
 **Start Trip:**
 | | |
@@ -203,7 +203,7 @@ Endpoints for the driver to advance the ride through its lifecycle.
 | Method + Path | `PUT /api/ride-request/start-trip` |
 | Auth | JWT required (driver) |
 | Request body | `{ "rideRequestId": string }` |
-| 200 | `{ "message": "trip started" }` |
+| 200 | `{ "success": true, "message": "trip started", "data": null }` |
 
 **Complete Trip:**
 | | |
@@ -211,8 +211,8 @@ Endpoints for the driver to advance the ride through its lifecycle.
 | Method + Path | `PUT /api/ride-request/complete-ride` |
 | Auth | JWT required (driver) |
 | Request body | `{ "rideRequestId": string, "finalDistance"?: number }` |
-| 200 | `{ "message": "ride completed", "fareAmountCalculated": number }` |
-| 409 | `{ "error": "ride_already_completed" }` |
+| 200 | `{ "success": true, "message": "ride completed", "data": { "fareAmountCalculated": number } }` |
+| 409 | `{ "success": false, "message": "this ride has already been completed", "data": null }` |
 
 **Kafka Event Produced — `ride.events` (on completion):**
 ```json
@@ -252,8 +252,8 @@ Either the commuter or driver can cancel a ride before it is completed.
 | Method + Path | `PUT /api/ride-request/cancel-ride` |
 | Auth | JWT required (commuter or driver) |
 | Request body | `{ "rideRequestId": string, "reason"?: string }` |
-| 200 | `{ "message": "ride cancelled" }` |
-| 409 | `{ "error": "ride_already_cancelled" }` or `{ "error": "ride_already_completed" }` |
+| 200 | `{ "success": true, "message": "ride cancelled", "data": null }` |
+| 409 | `{ "success": false, "message": "this ride has already been cancelled", "data": null }` or `{ "success": false, "message": "this ride has already been completed", "data": null }` |
 
 **Kafka Event Produced — `ride.events`:**
 ```json
@@ -315,8 +315,8 @@ Manages driver vehicle details, availability status, and driver search log.
 | Method + Path | `POST /api/driver-vehicle/register` |
 | Auth | JWT required (driver) |
 | Request body | `{ "vehicleMake": string, "vehicleModel": string, "vehicleColor": string, "registrationNo": string, "vehicleType": string }` |
-| 201 | `{ "vehicleId": string }` |
-| 409 | `{ "error": "vehicle_already_registered" }` |
+| 201 | `{ "success": true, "message": "vehicle registered successfully", "data": { "vehicleId": string } }` |
+| 409 | `{ "success": false, "message": "vehicle already registered for this driver", "data": null }` |
 
 **Update Vehicle:**
 | | |
@@ -324,7 +324,7 @@ Manages driver vehicle details, availability status, and driver search log.
 | Method + Path | `PUT /api/driver-vehicle/:vehicleId` |
 | Auth | JWT required (driver, owns vehicle) |
 | Request body | `{ "vehicleColor"?: string, "vehicleModel"?: string }` |
-| 200 | `{ "message": "vehicle updated" }` |
+| 200 | `{ "success": true, "message": "vehicle updated successfully", "data": null }` |
 
 #### Scenario: Driver registers vehicle
 - **WHEN** a driver submits valid vehicle details
@@ -372,14 +372,14 @@ Manages fare configuration and fare calculation for completed rides.
 | Method + Path | `POST /api/fareamount` |
 | Auth | JWT required (admin) |
 | Request body | `{ "vehicleType": string, "baseAmount": number, "perKmRate": number, "minimumFare": number }` |
-| 201 | `{ "fareId": string }` |
+| 201 | `{ "success": true, "message": "fare rule created successfully", "data": { "fareId": string } }` |
 
 **Get All Fare Rules:**
 | | |
 |--|--|
 | Method + Path | `GET /api/fareamount` |
 | Auth | JWT required (admin) |
-| 200 | Array of fare rule objects |
+| 200 | `{ "success": true, "message": "fare rules retrieved", "data": [...] }` |
 
 #### Scenario: Admin creates fare rule
 - **WHEN** an admin submits a fare rule for a vehicle type that does not yet exist
@@ -421,8 +421,8 @@ Manages station-based ride queues for pre-defined pickup/drop-off stations.
 | Method + Path | `POST /api/stations/checkin` |
 | Auth | JWT required (commuter) |
 | Request body | `{ "stationId": string }` |
-| 200 | `{ "queuePosition": number }` |
-| 404 | `{ "error": "station_not_found" }` |
+| 200 | `{ "success": true, "message": "checked in to station queue", "data": { "queuePosition": number } }` |
+| 404 | `{ "success": false, "message": "station not found", "data": null }` |
 
 **Driver Arrival at Station:**
 | | |
@@ -430,7 +430,7 @@ Manages station-based ride queues for pre-defined pickup/drop-off stations.
 | Method + Path | `POST /api/stations/driver-arrived` |
 | Auth | JWT required (driver) |
 | Request body | `{ "stationId": string }` |
-| 200 | `{ "message": "matched" }` or `{ "message": "added to waiting pool" }` |
+| 200 | `{ "success": true, "message": "matched", "data": null }` or `{ "success": true, "message": "added to waiting pool", "data": null }` |
 
 #### Scenario: Driver arrives, commuter in queue
 - **WHEN** a driver arrives at a station that has at least one commuter in queue
@@ -462,7 +462,7 @@ Manages carpooling requests and OSMnx-based route matching.
 | Method + Path | `POST /api/pairing-ride/request` |
 | Auth | JWT required (commuter) |
 | Request body | `{ "originLat": number, "originLong": number, "destLat": number, "destLong": number, "departureWindowStart": string, "departureWindowEnd": string }` |
-| 201 | `{ "pairingRequestId": string }` |
+| 201 | `{ "success": true, "message": "pairing request created successfully", "data": { "pairingRequestId": string } }` |
 
 **Cancel Pairing Request:**
 | | |

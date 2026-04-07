@@ -204,8 +204,8 @@ Exposes an internal HTTP endpoint so Ride Service can query the Redis geo-index 
 | Method + Path | `GET /internal/location/nearby-drivers` |
 | Auth | Internal service header (`X-Internal-Service: ride-service`) |
 | Query params | `lat=<number>&lng=<number>&radius=<metres>&limit=<number>` |
-| 200 | Array of `{ "driverId": string, "distanceMetres": number }` sorted ascending by distance |
-| 400 | `{ "error": "validation_error", "details": [...] }` |
+| 200 | `{ "success": true, "message": "nearby drivers retrieved", "data": [{ "driverId": string, "distanceMetres": number }] }` sorted ascending by distance |
+| 400 | `{ "success": false, "message": "validation failed", "data": null, "errors": [...] }` |
 
 This endpoint is **not** exposed through the API Gateway. It is called service-to-service only.
 
@@ -217,7 +217,7 @@ This endpoint is **not** exposed through the API Gateway. It is called service-t
 
 #### Scenario: No drivers in radius
 - **WHEN** no active drivers exist within the requested radius
-- **THEN** HTTP 200 is returned with an empty array `[]`
+- **THEN** HTTP 200 is returned with `{ "success": true, "message": "no drivers found within the requested radius", "data": [] }`
 
 #### Scenario: Redis geo-index unavailable
 - **WHEN** Redis is temporarily unavailable

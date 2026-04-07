@@ -93,11 +93,11 @@ Any request whose path does not match a registered prefix returns a standard err
 
 | | |
 |--|--|
-| Response | HTTP 404 `{ "error": "route_not_found" }` |
+| Response | HTTP 404 `{ "success": false, "message": "route not found", "data": null }` |
 
 #### Scenario: Unmatched path
 - **WHEN** a request arrives at a path with no matching prefix (e.g. `/api/unknown`)
-- **THEN** HTTP 404 is returned with `{ "error": "route_not_found" }`; no downstream service is called
+- **THEN** HTTP 404 is returned with `{ "success": false, "message": "route not found", "data": null }`; no downstream service is called
 
 ---
 
@@ -109,8 +109,9 @@ When a downstream service is unreachable, the gateway returns a structured 502 w
 
 ```json
 {
-  "error": "upstream_unavailable",
-  "service": "<service-name>"
+  "success": false,
+  "message": "upstream service unavailable",
+  "data": null
 }
 ```
 
@@ -119,12 +120,12 @@ When a downstream service is unreachable, the gateway returns a structured 502 w
 - `/health` continues to return HTTP 200 regardless of downstream availability
 
 **On upstream timeout (exceeds `PROXY_TIMEOUT_MS`):**
-- HTTP 504 is returned with `{ "error": "upstream_timeout", "service": "<service-name>" }`
+- HTTP 504 is returned with `{ "success": false, "message": "upstream request timed out", "data": null }`
 - The dangling upstream connection is closed; no connection leak
 
 #### Scenario: Downstream service is down
 - **WHEN** Ride Service is unreachable and a request arrives for `/api/ride-request/**`
-- **THEN** HTTP 502 is returned with `{ "error": "upstream_unavailable", "service": "ride-service" }`; User Service routes continue to work normally
+- **THEN** HTTP 502 is returned with `{ "success": false, "message": "upstream service unavailable", "data": null }`; User Service routes continue to work normally
 
 #### Scenario: All downstream services are down
 - **WHEN** all downstream services are unreachable simultaneously
@@ -195,11 +196,11 @@ In-process (per-instance) rate limiting in Phase 1. Distributed rate limiting vi
 | `POST /api/auth/forgot-password` | 3 requests | 1 hour per IP |
 | All other routes | 200 requests | 1 minute per IP |
 
-On limit exceeded: HTTP 429 `{ "error": "rate_limit_exceeded", "retryAfterSeconds": <number> }`.
+On limit exceeded: HTTP 429 `{ "success": false, "message": "rate limit exceeded", "data": null, "meta": { "retryAfterSeconds": <number> } }`.
 
 #### Scenario: OTP rate limit exceeded
 - **WHEN** the same IP sends more than 5 OTP requests within 10 minutes
-- **THEN** HTTP 429 is returned with `{ "error": "rate_limit_exceeded", "retryAfterSeconds": <remaining window seconds> }`; the request is not proxied
+- **THEN** HTTP 429 is returned with `{ "success": false, "message": "rate limit exceeded", "data": null, "meta": { "retryAfterSeconds": <remaining window seconds> } }`; the request is not proxied
 
 #### Scenario: General rate limit
 - **WHEN** an IP exceeds 200 requests per minute on any non-auth route

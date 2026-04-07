@@ -33,35 +33,39 @@ Returns aggregated platform-level metrics for the admin dashboard.
 | Auth | JWT required (admin role) |
 | Query params | `from=<ISO8601>&to=<ISO8601>` (optional; defaults to last 30 days) |
 | 200 | Dashboard summary object (see below) |
-| 403 | `{ "error": "insufficient_permissions" }` |
+| 403 | `{ "success": false, "message": "insufficient permissions", "data": null }` |
 
 **Response (200):**
 ```json
 {
-  "period": {
-    "from": "2025-02-10T00:00:00.000Z",
-    "to": "2025-03-10T23:59:59.000Z"
-  },
-  "rides": {
-    "total": 1240,
-    "completed": 1080,
-    "cancelled": 160,
-    "completionRate": 0.87
-  },
-  "fare": {
-    "totalCollected": 148500,
-    "avgFare": 137.5
-  },
-  "users": {
-    "totalRegistered": 4820,
-    "activeCommuters": 1230,
-    "activeDrivers": 340
-  },
-  "drivers": {
-    "totalOnline": 87,
-    "avgSearchRadius": 2400
-  },
-  "lagWarning": null
+  "success": true,
+  "message": "dashboard data retrieved",
+  "data": {
+    "period": {
+      "from": "2025-02-10T00:00:00.000Z",
+      "to": "2025-03-10T23:59:59.000Z"
+    },
+    "rides": {
+      "total": 1240,
+      "completed": 1080,
+      "cancelled": 160,
+      "completionRate": 0.87
+    },
+    "fare": {
+      "totalCollected": 148500,
+      "avgFare": 137.5
+    },
+    "users": {
+      "totalRegistered": 4820,
+      "activeCommuters": 1230,
+      "activeDrivers": 340
+    },
+    "drivers": {
+      "totalOnline": 87,
+      "avgSearchRadius": 2400
+    },
+    "lagWarning": null
+  }
 }
 ```
 
@@ -75,7 +79,7 @@ MongoDB read preference: `secondaryPreferred` for all dashboard queries.
 
 #### Scenario: Non-admin JWT
 - **WHEN** a JWT without `role: admin` is used
-- **THEN** HTTP 403 is returned with `{ "error": "insufficient_permissions" }`
+- **THEN** HTTP 403 is returned with `{ "success": false, "message": "insufficient permissions", "data": null }`
 
 #### Scenario: MongoDB secondary lagging
 - **WHEN** MongoDB secondary lag exceeds 5 seconds at query time
@@ -95,11 +99,13 @@ Returns a paginated list of ride requests for admin review.
 | Auth | JWT required (admin role) |
 | Query params | `page=<int>&limit=<int>&status=<string>&from=<ISO8601>&to=<ISO8601>&userId=<string>&driverId=<string>` |
 | 200 | Paginated ride list (see pagination standard) |
-| 403 | `{ "error": "insufficient_permissions" }` |
+| 403 | `{ "success": false, "message": "insufficient permissions", "data": null }` |
 
 **Response (200):**
 ```json
 {
+  "success": true,
+  "message": "rides retrieved",
   "data": [
     {
       "rideRequestId": "64a1f3e8c2a4b20017e4f502",
@@ -112,11 +118,13 @@ Returns a paginated list of ride requests for admin review.
       "completedAt": "2025-03-10T14:55:00.000Z"
     }
   ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 1080,
-    "hasNext": true
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1080,
+      "hasNext": true
+    }
   }
 }
 ```
@@ -145,19 +153,23 @@ Returns aggregated stats on driver search attempts.
 | Auth | JWT required (admin role) |
 | Query params | `from=<ISO8601>&to=<ISO8601>` |
 | 200 | Aggregated summary object |
-| 403 | `{ "error": "insufficient_permissions" }` |
+| 403 | `{ "success": false, "message": "insufficient permissions", "data": null }` |
 
 **Response (200):**
 ```json
 {
-  "period": {
-    "from": "2025-03-01T00:00:00.000Z",
-    "to": "2025-03-10T23:59:59.000Z"
-  },
-  "totalSearches": 3420,
-  "uniqueDriversSearched": 87,
-  "assignmentConversionRate": 0.76,
-  "noDriverFoundCount": 821
+  "success": true,
+  "message": "driver search log summary retrieved",
+  "data": {
+    "period": {
+      "from": "2025-03-01T00:00:00.000Z",
+      "to": "2025-03-10T23:59:59.000Z"
+    },
+    "totalSearches": 3420,
+    "uniqueDriversSearched": 87,
+    "assignmentConversionRate": 0.76,
+    "noDriverFoundCount": 821
+  }
 }
 ```
 

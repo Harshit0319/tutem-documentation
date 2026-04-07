@@ -31,9 +31,9 @@ A new user account is created with phone number, name, and role.
 | Method + Path | `POST /api/auth/register` |
 | Auth | Public |
 | Request body | `{ "phone": string, "name": string, "role": "commuter" \| "driver" }` |
-| 201 | `{ "userId": string }` |
-| 400 | `{ "error": "validation_error", "details": [...] }` — missing/invalid fields |
-| 409 | `{ "error": "phone_already_registered" }` |
+| 201 | `{ "success": true, "message": "user registered successfully", "data": { "userId": string } }` |
+| 400 | `{ "success": false, "message": "validation failed", "data": null, "errors": [...] }` — missing/invalid fields |
+| 409 | `{ "success": false, "message": "phone number already registered", "data": null }` |
 
 **Kafka Event Produced — `user.events`:**
 ```json
@@ -53,11 +53,11 @@ Topic key: `userId`
 
 #### Scenario: Duplicate phone number
 - **WHEN** a phone number that is already registered is submitted
-- **THEN** HTTP 409 is returned with `{ "error": "phone_already_registered" }`; no duplicate document is created; no Kafka event is emitted
+- **THEN** HTTP 409 is returned with `{ "success": false, "message": "phone number already registered", "data": null }`; no duplicate document is created; no Kafka event is emitted
 
 #### Scenario: Invalid role value
 - **WHEN** role is not `commuter` or `driver`
-- **THEN** HTTP 400 is returned with `{ "error": "validation_error", "details": [{ "field": "role", "issue": "must be commuter or driver" }] }`
+- **THEN** HTTP 400 is returned with `{ "success": false, "message": "validation failed", "data": null, "errors": [{ "field": "role", "message": "must be commuter or driver" }] }`
 
 ---
 
@@ -73,9 +73,9 @@ Sends an OTP to the user's phone and verifies it to issue a JWT.
 | Method + Path | `POST /api/auth/send-otp` |
 | Auth | Public |
 | Request body | `{ "phone": string }` |
-| 200 | `{ "message": "OTP sent" }` |
-| 404 | `{ "error": "user_not_found" }` |
-| 429 | `{ "error": "otp_rate_limited" }` |
+| 200 | `{ "success": true, "message": "OTP sent", "data": null }` |
+| 404 | `{ "success": false, "message": "user not found", "data": null }` |
+| 429 | `{ "success": false, "message": "OTP rate limit exceeded", "data": null }` |
 
 **Verify OTP:**
 | | |
@@ -83,9 +83,9 @@ Sends an OTP to the user's phone and verifies it to issue a JWT.
 | Method + Path | `POST /api/auth/verify-otp` |
 | Auth | Public |
 | Request body | `{ "phone": string, "otp": string }` |
-| 200 | `{ "accessToken": string, "refreshToken": string, "userId": string }` |
-| 401 | `{ "error": "otp_invalid" }` or `{ "error": "otp_expired" }` |
-| 404 | `{ "error": "user_not_found" }` |
+| 200 | `{ "success": true, "message": "OTP verified successfully", "data": { "accessToken": string, "refreshToken": string, "userId": string } }` |
+| 401 | `{ "success": false, "message": "OTP is invalid", "data": null }` or `{ "success": false, "message": "OTP has expired", "data": null }` |
+| 404 | `{ "success": false, "message": "user not found", "data": null }` |
 
 OTP is stored as a hashed value in the `users` document with a TTL field. Rate limit: max 5 OTP requests per phone number per 10 minutes — enforced in-memory (no Redis).
 
@@ -95,7 +95,7 @@ OTP is stored as a hashed value in the `users` document with a TTL field. Rate l
 
 #### Scenario: Expired OTP
 - **WHEN** an OTP is submitted after its validity window has elapsed
-- **THEN** HTTP 401 is returned with `{ "error": "otp_expired" }`
+- **THEN** HTTP 401 is returned with `{ "success": false, "message": "OTP has expired", "data": null }`
 
 #### Scenario: OTP rate limit exceeded
 - **WHEN** more than 5 OTP requests are made for the same phone within 10 minutes
@@ -115,8 +115,8 @@ Authenticates a user with a 4–6 digit MPIN as an alternative to OTP.
 | Method + Path | `POST /api/auth/set-mpin` |
 | Auth | JWT required |
 | Request body | `{ "mpin": string }` |
-| 200 | `{ "message": "MPIN set" }` |
-| 400 | `{ "error": "invalid_mpin_format" }` |
+| 200 | `{ "success": true, "message": "MPIN set successfully", "data": null }` |
+| 400 | `{ "success": false, "message": "invalid MPIN format", "data": null }` |
 
 **Login with MPIN:**
 | | |
@@ -124,9 +124,9 @@ Authenticates a user with a 4–6 digit MPIN as an alternative to OTP.
 | Method + Path | `POST /api/auth/mpin-login` |
 | Auth | Public |
 | Request body | `{ "phone": string, "mpin": string }` |
-| 200 | `{ "accessToken": string, "refreshToken": string, "userId": string }` |
-| 401 | `{ "error": "mpin_invalid" }` |
-| 403 | `{ "error": "mpin_not_set" }` or `{ "error": "account_inactive" }` |
+| 200 | `{ "success": true, "message": "login successful", "data": { "accessToken": string, "refreshToken": string, "userId": string } }` |
+| 401 | `{ "success": false, "message": "invalid MPIN", "data": null }` |
+| 403 | `{ "success": false, "message": "MPIN not set", "data": null }` or `{ "success": false, "message": "account is inactive", "data": null }` |
 
 MPIN is stored as a bcrypt hash.
 
@@ -136,7 +136,7 @@ MPIN is stored as a bcrypt hash.
 
 #### Scenario: MPIN not set
 - **WHEN** a user who has never set an MPIN attempts MPIN login
-- **THEN** HTTP 403 is returned with `{ "error": "mpin_not_set" }`
+- **THEN** HTTP 403 is returned with `{ "success": false, "message": "MPIN not set", "data": null }`
 
 ---
 
@@ -150,8 +150,8 @@ Issues a new access token given a valid refresh token.
 | Method + Path | `POST /api/auth/refresh-token` |
 | Auth | Public (refresh token in body) |
 | Request body | `{ "refreshToken": string }` |
-| 200 | `{ "accessToken": string }` |
-| 401 | `{ "error": "refresh_token_invalid" }` or `{ "error": "refresh_token_expired" }` |
+| 200 | `{ "success": true, "message": "token refreshed successfully", "data": { "accessToken": string } }` |
+| 401 | `{ "success": false, "message": "refresh token is invalid", "data": null }` or `{ "success": false, "message": "refresh token has expired", "data": null }` |
 
 JWT config: access token TTL = 15 minutes; refresh token TTL = 7 days.
 No Redis blacklist in Phase 1. Logout is client-side token discard.
@@ -162,7 +162,7 @@ No Redis blacklist in Phase 1. Logout is client-side token discard.
 
 #### Scenario: Expired refresh token
 - **WHEN** a refresh token past its 7-day TTL is submitted
-- **THEN** HTTP 401 is returned with `{ "error": "refresh_token_expired" }`
+- **THEN** HTTP 401 is returned with `{ "success": false, "message": "refresh token has expired", "data": null }`
 
 ---
 
@@ -181,8 +181,8 @@ Manages reading and updating the user's profile data.
 |--|--|
 | Method + Path | `GET /api/user/profile` |
 | Auth | JWT required |
-| 200 | `{ "userId": string, "name": string, "phone": string, "role": string, "photoUrl": string \| null, "preferences": object }` |
-| 401 | `{ "error": "token_invalid" }` |
+| 200 | `{ "success": true, "message": "profile retrieved", "data": { "userId": string, "name": string, "phone": string, "role": string, "photoUrl": string \| null, "preferences": object } }` |
+| 401 | `{ "success": false, "message": "invalid or missing token", "data": null }` |
 
 **Update Profile:**
 | | |
@@ -190,9 +190,9 @@ Manages reading and updating the user's profile data.
 | Method + Path | `PUT /api/user/profile` |
 | Auth | JWT required |
 | Request body | `{ "name"?: string, "photoUrl"?: string, "preferences"?: object }` |
-| 200 | `{ "message": "profile updated" }` |
-| 403 | `{ "error": "role_change_not_permitted" }` — if `role` field is included in body |
-| 413 | `{ "error": "file_too_large" }` — if photo URL points to an oversized file |
+| 200 | `{ "success": true, "message": "profile updated successfully", "data": null }` |
+| 403 | `{ "success": false, "message": "role cannot be changed after registration", "data": null }` — if `role` field is included in body |
+| 413 | `{ "success": false, "message": "photo file is too large", "data": null }` — if photo URL points to an oversized file |
 
 Role is immutable after registration. Any request body containing `role` is rejected.
 
@@ -202,7 +202,7 @@ Role is immutable after registration. Any request body containing `role` is reje
 
 #### Scenario: Role change attempt blocked
 - **WHEN** PUT /api/user/profile is called with a `role` field in the body
-- **THEN** HTTP 403 is returned with `{ "error": "role_change_not_permitted" }`
+- **THEN** HTTP 403 is returned with `{ "success": false, "message": "role cannot be changed after registration", "data": null }`
 
 ---
 
@@ -216,8 +216,8 @@ Stores an FCM device token for push notification delivery.
 | Method + Path | `POST /api/user/device-token` |
 | Auth | JWT required |
 | Request body | `{ "deviceToken": string, "platform": "ios" \| "android" }` |
-| 200 | `{ "message": "device token registered" }` |
-| 400 | `{ "error": "invalid_device_token" }` |
+| 200 | `{ "success": true, "message": "device token registered", "data": null }` |
+| 400 | `{ "success": false, "message": "invalid device token", "data": null }` |
 
 Idempotent: submitting the same token twice does not create a duplicate.
 
@@ -239,7 +239,7 @@ Topic key: `userId`
 
 #### Scenario: Null token rejected
 - **WHEN** an empty or null device token is submitted
-- **THEN** HTTP 400 is returned with `{ "error": "invalid_device_token" }`
+- **THEN** HTTP 400 is returned with `{ "success": false, "message": "invalid device token", "data": null }`
 
 ---
 
@@ -254,15 +254,15 @@ Allows commuters to opt into the shuttle service programme.
 |--|--|
 | Method + Path | `POST /api/user/shuttle-optin` |
 | Auth | JWT required |
-| 200 | `{ "message": "opted in" }` |
-| 403 | `{ "error": "not_eligible" }` — if user role is not `commuter` |
+| 200 | `{ "success": true, "message": "shuttle opt-in successful", "data": null }` |
+| 403 | `{ "success": false, "message": "only commuters can opt into the shuttle service", "data": null }` — if user role is not `commuter` |
 
 **Opt Out:**
 | | |
 |--|--|
 | Method + Path | `POST /api/user/shuttle-optout` |
 | Auth | JWT required |
-| 200 | `{ "message": "opted out" }` |
+| 200 | `{ "success": true, "message": "shuttle opt-out successful", "data": null }` |
 
 Idempotent: opt-in when already opted-in returns HTTP 200 without error.
 
@@ -272,7 +272,7 @@ Idempotent: opt-in when already opted-in returns HTTP 200 without error.
 
 #### Scenario: Driver cannot opt in
 - **WHEN** an authenticated driver calls POST /api/user/shuttle-optin
-- **THEN** HTTP 403 is returned with `{ "error": "not_eligible" }`
+- **THEN** HTTP 403 is returned with `{ "success": false, "message": "only commuters can opt into the shuttle service", "data": null }`
 
 ---
 
@@ -290,8 +290,8 @@ Handles admin-specific authentication and user management operations.
 | Method + Path | `POST /api/auth/admin-login` |
 | Auth | Public |
 | Request body | `{ "username": string, "password": string }` |
-| 200 | `{ "accessToken": string, "role": "admin" }` |
-| 401 | `{ "error": "invalid_credentials" }` |
+| 200 | `{ "success": true, "message": "admin login successful", "data": { "accessToken": string, "role": "admin" } }` |
+| 401 | `{ "success": false, "message": "invalid credentials", "data": null }` |
 
 Admin credentials are stored in the `users` collection with role `admin`. Admin JWT includes a `role: admin` claim used by downstream services for authorisation.
 
